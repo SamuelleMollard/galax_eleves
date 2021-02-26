@@ -79,6 +79,8 @@ int main(int argc, char ** argv)
 		exit(EXIT_FAILURE);
 
 	bool done = false;
+	auto total_duration = 0.0f;
+	int nb_frames = 0;
 
 	while (!done)
 	{
@@ -96,7 +98,10 @@ int main(int argc, char ** argv)
 
 		auto fps = (float)1.0f / (duration_us.count()) * 1000000.0f;
 		std::cout << "FPS: " << std::setw(3) << fps << "\r" << std::flush;
+		total_duration += fps;
+		nb_frames += 1;
 	}
 
+	std::cout << "Mean fps value = " << total_duration/nb_frames << std::endl;
 	return 0;
 }
