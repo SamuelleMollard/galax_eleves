@@ -22,7 +22,7 @@ void Model_CPU_fast
 
 	#pragma omp parallel for schedule(static,100)
 	for (int i = 0; i < n_particles; ++i) {
-		for (int j = i+1; j < n_particles; ++j) {
+		for (int j = 0; j < n_particles; ++j) {
 			float dx = particles.x[j] - particles.x[i];
 			float dy = particles.y[j] - particles.y[i];
 			float dz = particles.z[j] - particles.z[i];
@@ -36,13 +36,13 @@ void Model_CPU_fast
 			}
 
 			float norm_factor_towards_i = dist * initstate.masses[j];  // Distance * mass felt by particle i
-			float norm_factor_towards_j = dist * initstate.masses[i];  // Distance * mass felt by particle j
+			//float norm_factor_towards_j = dist * initstate.masses[i];  // Distance * mass felt by particle j
 			accelerationsx[i] += dx * norm_factor_towards_i;
 			accelerationsy[i] += dy * norm_factor_towards_i;
 			accelerationsz[i] += dz * norm_factor_towards_i;
-			accelerationsx[j] -= dx * norm_factor_towards_j;  // Also compute the force i exerces onto j
-			accelerationsy[j] -= dy * norm_factor_towards_j;
-			accelerationsz[j] -= dz * norm_factor_towards_j;
+			//accelerationsx[j] -= dx * norm_factor_towards_j;  // Also compute the force i exerces onto j
+			//accelerationsy[j] -= dy * norm_factor_towards_j;
+			//accelerationsz[j] -= dz * norm_factor_towards_j;
 		}
 	}
 	for (int i = 0; i < n_particles; ++i) {	
