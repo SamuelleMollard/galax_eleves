@@ -65,7 +65,7 @@ void Model_CPU_fast::step()
 			mipp::Reg<float> raccy_i = &accelerationsy[i];
 			mipp::Reg<float> raccz_i = &accelerationsz[i];
 
-		for (int j = 0; j < n_particles; ++j) {
+		for (int j = 0; j < n_particles; j += mipp::N<float>()) {
 			//load registers body j
 			const mipp::Reg<float> rposx_j = &particles.x[j];
 			const mipp::Reg<float> rposy_j = &particles.y[j];
