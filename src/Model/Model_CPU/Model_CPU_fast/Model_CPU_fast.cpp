@@ -17,46 +17,45 @@ void Model_CPU_fast
 ::step()
 {
  
-    std::fill(accelerationsx.begin(), accelerationsx.end(), 0);
-    std::fill(accelerationsy.begin(), accelerationsy.end(), 0);
-    std::fill(accelerationsz.begin(), accelerationsz.end(), 0);
+	std::fill(accelerationsx.begin(), accelerationsx.end(), 0);
+	std::fill(accelerationsy.begin(), accelerationsy.end(), 0);
+	std::fill(accelerationsz.begin(), accelerationsz.end(), 0);
 
 	#pragma omp parallel
-    {
-	    std::vector<float> threadx(n_particles, 0);
-	    std::vector<float> thready(n_particles, 0);
-	    std::vector<float> threadz(n_particles, 0);
-#pragma omp for schedule(static, 100)
-	    for (int i = 0; i < n_particles; ++i) {
-		    for (int j = i+1; j < n_particles; ++j) {
-			    float dx = particles.x[j] - particles.x[i];
-			    float dy = particles.y[j] - particles.y[i];
-			    float dz = particles.z[j] - particles.z[i];
-			    float dist = dx * dx + dy * dy + dz * dz;
+	{
+		std::vector<float> threadx(n_particles, 0);
+		std::vector<float> thready(n_particles, 0);
+		std::vector<float> threadz(n_particles, 0);
+		#pragma omp for schedule(static, 100)
+		for (int i = 0; i < n_particles; ++i) {
+			for (int j = i+1; j < n_particles; ++j) {
+				float dx = particles.x[j] - particles.x[i];
+			   	float dy = particles.y[j] - particles.y[i];
+			   	float dz = particles.z[j] - particles.z[i];
+			    	float dist = dx * dx + dy * dy + dz * dz;
+				if (dist < 1.0) {
+					dist = 10;
+				}
+				else {
+					dist = 10 / std::sqrt(dist * dist * dist);
+				}
 
-			    if (dist < 1.0) {
-				    dist = 10;
-			    }
-			    else {
-				    dist = 10 / std::sqrt(dist * dist * dist);
-			    }
-
-			    float norm_factor_towards_i = dist * initstate.masses[j];  // Distance * mass felt by particle i
-			    float norm_factor_towards_j = dist * initstate.masses[i];  // Distance * mass felt by particle j
-			    threadx[i] += dx * norm_factor_towards_i;
-			    thready[i] += dy * norm_factor_towards_i;
-			    threadz[i] += dz * norm_factor_towards_i;
-			    threadx[j] -= dx * norm_factor_towards_j;  // Also compute the force i exerces onto j
-			    thready[j] -= dy * norm_factor_towards_j;
-			    threadz[j] -= dz * norm_factor_towards_j;
-		    }
-	    }
-	    #pragma omp mutex
-	    for (int i = 0; i < n_particles; ++i) {
-		velocitiesx[i] += threadx[i] * 2.0f;
-		velocitiesy[i] += thready[i] * 2.0f;
-		velocitiesz[i] += threadz[i] * 2.0f;
-	    }
+			    	float norm_factor_towards_i = dist * initstate.masses[j];  // Distance * mass felt by particle i
+			   	float norm_factor_towards_j = dist * initstate.masses[i];  // Distance * mass felt by particle j
+			   	threadx[i] += dx * norm_factor_towards_i;
+			    	thready[i] += dy * norm_factor_towards_i;
+			    	threadz[i] += dz * norm_factor_towards_i;
+			    	threadx[j] -= dx * norm_factor_towards_j;  // Also compute the force i exerces onto j
+			    	thready[j] -= dy * norm_factor_towards_j;
+			    	threadz[j] -= dz * norm_factor_towards_j;
+		    	}
+	    	}
+		#pragma omp mutex
+		for (int i = 0; i < n_particles; ++i) {
+			velocitiesx[i] += threadx[i] * 2.0f;
+			velocitiesy[i] += thready[i] * 2.0f;
+			velocitiesz[i] += threadz[i] * 2.0f;
+		}
         }
 	for (int i = 0; i < n_particles; ++i) {	
 		particles.x[i] += velocitiesx[i] * 0.1f;
