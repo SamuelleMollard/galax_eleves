@@ -1,0 +1,2 @@
+Duration for CPU: 0.482557
+CPU result : 5000379
