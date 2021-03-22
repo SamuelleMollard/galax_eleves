@@ -45,7 +45,7 @@ int main(int argc, char ** argv)
 
 	// parse arguments
 	CLI11_PARSE(app, argc, argv);
-
+	
 	// load particles initial position into initstate
 	Initstate initstate(n_particles);
 

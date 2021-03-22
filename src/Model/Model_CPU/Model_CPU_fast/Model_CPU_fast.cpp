@@ -14,48 +14,42 @@ Model_CPU_fast::Model_CPU_fast(const Initstate& initstate, Particles& particles)
 
 void Model_CPU_fast::step()
 {
- 
-    std::fill(accelerationsx.begin(), accelerationsx.end(), 0);
-    std::fill(accelerationsy.begin(), accelerationsy.end(), 0);
-    std::fill(accelerationsz.begin(), accelerationsz.end(), 0);
-
 	/**
 	#pragma omp parallel
-    {
-	    std::vector<float> threadx(n_particles, 0);
-	    std::vector<float> thready(n_particles, 0);
-	    std::vector<float> threadz(n_particles, 0);
+	{
+		std::vector<float> threadx(n_particles, 0);
+		std::vector<float> thready(n_particles, 0);
+		std::vector<float> threadz(n_particles, 0);
 		#pragma omp for schedule(static, 100)
-	    for (int i = 0; i < n_particles; ++i) {
-		    for (int j = i+1; j < n_particles; ++j) {
-			    float dx = particles.x[j] - particles.x[i];
-			    float dy = particles.y[j] - particles.y[i];
-			    float dz = particles.z[j] - particles.z[i];
-			    float dist = dx * dx + dy * dy + dz * dz;
+		for (int i = 0; i < n_particles; ++i) {
+			for (int j = i+1; j < n_particles; ++j) {
+				float dx = particles.x[j] - particles.x[i];
+			   	float dy = particles.y[j] - particles.y[i];
+			   	float dz = particles.z[j] - particles.z[i];
+			    	float dist = dx * dx + dy * dy + dz * dz;
+				if (dist < 1.0) {
+					dist = 10;
+				}
+				else {
+					dist = 10 / std::sqrt(dist * dist * dist);
+				}
 
-			    if (dist < 1.0) {
-				    dist = 10;
-			    }
-			    else {
-				    dist = 10 / std::sqrt(dist * dist * dist);
-			    }
-
-			    float norm_factor_towards_i = dist * initstate.masses[j];  // Distance * mass felt by particle i
-			    float norm_factor_towards_j = dist * initstate.masses[i];  // Distance * mass felt by particle j
-			    threadx[i] += dx * norm_factor_towards_i;
-			    thready[i] += dy * norm_factor_towards_i;
-			    threadz[i] += dz * norm_factor_towards_i;
-			    threadx[j] -= dx * norm_factor_towards_j;  // Also compute the force i exerces onto j
-			    thready[j] -= dy * norm_factor_towards_j;
-			    threadz[j] -= dz * norm_factor_towards_j;
-		    }
-	    }
-	    #pragma omp mutex
-	    for (int i = 0; i < n_particles; ++i) {
+			    	float norm_factor_towards_i = dist * initstate.masses[j];  // Distance * mass felt by particle i
+			   	float norm_factor_towards_j = dist * initstate.masses[i];  // Distance * mass felt by particle j
+			   		threadx[i] += dx * norm_factor_towards_i;
+			    	thready[i] += dy * norm_factor_towards_i;
+			    	threadz[i] += dz * norm_factor_towards_i;
+			    	threadx[j] -= dx * norm_factor_towards_j;  // Also compute the force i exerces onto j
+			    	thready[j] -= dy * norm_factor_towards_j;
+			    	threadz[j] -= dz * norm_factor_towards_j;
+		    	}
+	    	}
+		#pragma omp mutex
+		for (int i = 0; i < n_particles; ++i) {
 			velocitiesx[i] += threadx[i] * 2.0f;
 			velocitiesy[i] += thready[i] * 2.0f;
 			velocitiesz[i] += threadz[i] * 2.0f;
-	    }
+		}
     }
 	for (int i = 0; i < n_particles; ++i) {	
 		particles.x[i] += velocitiesx[i] * 0.1f;
@@ -63,7 +57,10 @@ void Model_CPU_fast::step()
 		particles.z[i] += velocitiesz[i] * 0.1f;
 	}**/
 
-	
+	std::fill(accelerationsx.begin(), accelerationsx.end(), 0);
+	std::fill(accelerationsy.begin(), accelerationsy.end(), 0);
+	std::fill(accelerationsz.begin(), accelerationsz.end(), 0);
+
 	//OMP + MIPP version
 	#pragma omp parallel
     {
@@ -89,16 +86,19 @@ void Model_CPU_fast::step()
 				mipp::Reg<float> rdx = rposx_j - rposx_i;
 				mipp::Reg<float> rdy = rposy_j - rposy_i;
 				mipp::Reg<float> rdz = rposz_j - rposz_i;
-				mipp::Reg<float> rdist = mipp::fmadd(rdx,rdx, mipp::fmadd(rdy,rdy,rdz * rdz));
+				mipp::Reg<float> rdist = rdx *rdx + rdy*rdy + rdz * rdz;
 
-				mipp::Reg<float> r10 = 10 ;
+				mipp::Reg<float> r10 = 10.0 ;
 				//If dist < 1 then dist = 10
 				// else dist = 10/sqrt(rdist^3)
 
-				rdist = min(r10,r10/(mipp::rsqrt((rdist * rdist) * rdist)));	
+				rdist = min(r10,r10/(mipp::rsqrt(rdist * rdist * rdist)));
 				
-				mipp::Reg<float> rnorm_factor_towards_i = rdist * initstate.masses[j];  // Distance * mass felt by particle i
-				mipp::Reg<float> rnorm_factor_towards_j = rdist * initstate.masses[i];  // Distance * mass felt by particle j
+				mipp::Reg<float> rmasses_j =  &initstate.masses[j];
+				mipp::Reg<float> rmasses_i =  &initstate.masses[i];
+
+				mipp::Reg<float> rnorm_factor_towards_i = rdist *rmasses_j;  // Distance * mass felt by particle i
+				mipp::Reg<float> rnorm_factor_towards_j = rdist * rmasses_i;  // Distance * mass felt by particle j
 				raccx_i += rdx * rnorm_factor_towards_i;
 				raccy_i += rdy * rnorm_factor_towards_i;
 				raccz_i += rdz * rnorm_factor_towards_i;
@@ -119,32 +119,42 @@ void Model_CPU_fast::step()
 	    for (int i = 0; i < n_particles; i += mipp::N<float>()) {
 
 			mipp::Reg<float> rvelx = &velocitiesx[i];
-			mipp::Reg<float> rvely = &velocitiesx[i];
+			mipp::Reg<float> rvely = &velocitiesy[i];
 			mipp::Reg<float> rvelz = &velocitiesz[i];
 
 			mipp::Reg<float> raccx = &accelerationsx[i];
 			mipp::Reg<float> raccy = &accelerationsy[i];
 			mipp::Reg<float> raccz = &accelerationsz[i];
 
-			rvelx += raccx * 2.0f;
-			rvely += raccy * 2.0f;
-			rvelz += raccz * 2.0f;
+			mipp::Reg<float> r2 = 2.0f;
+			rvelx += raccx *r2;
+			rvely += raccy * r2;
+			rvelz += raccz * r2;
+
+			std::cerr << accelerationsx[i] << "  =  " << accelerationsy[i] << "  =  " << accelerationsz[i] << std::endl;
+
+			rvelx.store(&velocitiesx[i]);
+			rvely.store(&velocitiesy[i]);
+			rvelz.store(&velocitiesz[i]);
 	    }
 	}
 
 	for (int i = 0; i < n_particles; i += mipp::N<float>()){
 			mipp::Reg<float> rvelx = &velocitiesx[i];
-			mipp::Reg<float> rvely = &velocitiesx[i];
+			mipp::Reg<float> rvely = &velocitiesy[i];
 			mipp::Reg<float> rvelz = &velocitiesz[i];
 
 			mipp::Reg<float> rposx = &particles.x[i];
 			mipp::Reg<float> rposy = &particles.y[i];
 			mipp::Reg<float> rposz = &particles.z[i];	
 			
-			rposx += rvelx  *0.1f;
-			rposy += rvely  *0.1f;
-			rposz += rvelz  *0.1f;
+			mipp::Reg<float> r01 = 0.1f;
+			rposx += rvelx * r01;
+			rposy += rvely * r01;
+			rposz += rvelz * r01;
 
+			
+			
 			rposx.store(&particles.x[i]);
 			rposy.store(&particles.y[i]);
 			rposz.store(&particles.z[i]);
